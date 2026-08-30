@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+
+# Playwright artifacts
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
+
+# Screenshots / videos / traces captured outside the standard report dirs
+screenshots/
+videos/
+traces/
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+
+# Authenticated session state (never commit real cookies/tokens)
+.auth/
+storageState.json
+**/storageState*.json
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Local-only reference docs — kept on disk for personal use, deliberately
+# excluded from the public GitHub repo (README.md is the only public doc).
+WALKTHROUGH.md
+TEST_CASES.md
+TEST_PLAN.md
+AUTOMATION_STRATEGY.md
+ARCHITECTURE.md
+PROJECT_EXPLANATION.md
+INTERVIEW_QUESTIONS.md
+BLOCKED_SCENARIOS.md
