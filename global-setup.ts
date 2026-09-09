@@ -40,12 +40,28 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
 
   await page.goto(baseURL);
 
+  // The environment gate is not guaranteed to be present — it was added at
+  // some point and removed again (confirmed 2026-09-09: the app now serves
+  // directly, HTTP 200, with no Cognito redirect at all). Detect rather
+  // than assume: if we did not land on the Cognito domain and no sign-in
+  // form is showing, there is nothing to log into, so save the current
+  // (ungated) state and move on. Without this check, removing the gate
+  // would break every test run at setup time.
+  const onCognito = /amazoncognito\.com/i.test(new URL(page.url()).hostname);
+  const usernameField = page.locator('#signInFormUsername:visible');
+  const gatePresent = onCognito || (await usernameField.count()) > 0;
+
+  if (!gatePresent) {
+    await page.context().storageState({ path: AUTH_STATE_PATH });
+    await browser.close();
+    return;
+  }
+
   // AWS Cognito's default Hosted UI template renders this exact id twice
   // in the DOM (confirmed live: two identical, duplicate-id
   // #signInFormUsername inputs) — only one is actually visible, so every
   // field here is scoped with the :visible pseudo-class rather than
   // relying on id/role uniqueness alone.
-  const usernameField = page.locator('#signInFormUsername:visible');
   await usernameField.waitFor({ state: 'visible', timeout: 20_000 });
   await usernameField.fill(username);
 

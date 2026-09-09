@@ -38,16 +38,17 @@ test.describe('Static resources @migration', () => {
     expect(firstNaturalWidth).toBeGreaterThan(0);
   });
 
-  test('footer "Useful Links" partner icons should render, not stay stuck on a placeholder (DT-14)', async ({
+  test('footer "Useful Links" partner icons render (DT-14 — fixed, now a guard)', async ({
     homePage,
   }) => {
-    // Known, currently-open issue: all 7 partner-logo icons in the
-    // footer's Useful Links row are permanently stuck on a 1x1 transparent
-    // placeholder GIF (naturalWidth: 1) — the real asset never swaps in.
-    // This test encodes the desired behavior and is expected to fail
-    // until DT-14 is fixed; see BLOCKED_SCENARIOS.md.
-    test.fail(true, 'Tracks open defect DT-14 — see BLOCKED_SCENARIOS.md');
-
+    // DT-14 history: all 7 partner-logo icons were previously stuck on a
+    // 1x1 transparent placeholder GIF (naturalWidth: 1) and this test
+    // carried `test.fail()` to track that open defect. Confirmed FIXED on
+    // 2026-09-09 — the icons now load real assets via the Next.js image
+    // optimizer (naturalWidth 55–133). The `test.fail()` annotation was
+    // removed accordingly (an unexpected pass is exactly the signal that
+    // pattern exists to produce); this now stands as a normal regression
+    // guard against the placeholder behavior returning.
     await homePage.open();
 
     const icons = homePage.footer.usefulLinksIcons;
