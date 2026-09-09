@@ -1,6 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
 import { BasePage } from './BasePage';
-import { waitForSearchResponse } from '../utils/helpers';
+import { waitForSearchResponse, waitForTextToSettle } from '../utils/helpers';
 
 /**
  * The /search left-hand filter panel.
@@ -32,10 +32,22 @@ import { waitForSearchResponse } from '../utils/helpers';
  */
 export class FilterPanel extends BasePage {
   readonly resetFiltersButton: Locator;
+  private readonly totalCountText: Locator;
 
   constructor(page: Page) {
     super(page);
     this.resetFiltersButton = page.getByRole('button', { name: /reset filters/i });
+    // Same locator SearchPage uses; held here so filter actions can wait
+    // for the count to actually re-render rather than returning in the
+    // ~200ms gap after the network response. See `waitForTextToSettle`.
+    this.totalCountText = page.getByText(/total .*schemes available|we found \d+ schemes/i);
+  }
+
+  private async countTextOrNull(): Promise<string | null> {
+    return this.totalCountText
+      .innerText()
+      .then((t) => t.trim())
+      .catch(() => null);
   }
 
   // `groupName` is kept as a parameter for call-site clarity and in case
@@ -67,8 +79,10 @@ export class FilterPanel extends BasePage {
     // (focus the checkbox, press Space) sidesteps coordinate-based
     // hit-testing entirely and was confirmed live to reliably register.
     const checkbox = this.optionLocator(groupName, optionLabel).locator('input[type="checkbox"]');
+    const before = await this.countTextOrNull();
     await checkbox.focus();
     await waitForSearchResponse(this.page, () => this.page.keyboard.press('Space'));
+    await waitForTextToSettle(this.totalCountText, before);
   }
 
   async isOptionChecked(groupName: string, optionLabel: string): Promise<boolean> {
@@ -76,6 +90,8 @@ export class FilterPanel extends BasePage {
   }
 
   async clearAll(): Promise<void> {
+    const before = await this.countTextOrNull();
     await waitForSearchResponse(this.page, () => this.resetFiltersButton.click());
+    await waitForTextToSettle(this.totalCountText, before);
   }
 }

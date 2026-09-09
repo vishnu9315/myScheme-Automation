@@ -51,15 +51,29 @@ export class Header extends BasePage {
   }
 
   async toggleTheme(): Promise<void> {
-    // Confirmed live: the third-party UserWay accessibility-options
-    // trigger (a fixed-position floating button, separate from this
-    // app's own "Accessibility Options" panel) visually overlaps the
-    // theme toggle at this viewport and intercepts a normal click's
-    // pointer-event target — a real UI overlap, not a locator problem
-    // (the toggle itself resolves uniquely and correctly). `force: true`
-    // dispatches directly to the toggle rather than working around it by
-    // relocating/hiding the overlapping widget.
-    await this.themeToggle.click({ force: true });
+    // The third-party UserWay accessibility widget (z-index 99999) covers
+    // ~71% of this control at ~1280px viewports, so a coordinate-based
+    // click — including `click({ force: true })`, which still dispatches at
+    // real screen coordinates — lands on the widget instead and silently
+    // does nothing. That is a genuine user-facing defect, tracked by its
+    // own test in tests/regression/navigation.spec.ts rather than papered
+    // over here. `dispatchEvent` targets the element directly, so this
+    // method exercises the toggle's own behavior independent of the
+    // obstruction.
+    await this.themeToggle.dispatchEvent('click');
+  }
+
+  /**
+   * The element that would actually receive a real click at the theme
+   * toggle's centre point. Used to detect the obstruction described in
+   * `toggleTheme()`; returns a `TAG.className` string.
+   */
+  async elementAtThemeTogglePoint(): Promise<string> {
+    return this.themeToggle.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+      return top ? `${top.tagName}.${(top.className || '').toString()}` : 'none';
+    });
   }
 
   async isDarkMode(): Promise<boolean> {

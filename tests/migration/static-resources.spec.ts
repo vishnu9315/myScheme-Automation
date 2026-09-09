@@ -55,8 +55,17 @@ test.describe('Static resources @migration', () => {
     const iconCount = await icons.count();
     expect(iconCount).toBeGreaterThan(0);
 
+    // These icons sit below the fold and are lazy-loaded, so they must be
+    // scrolled into view before measuring. Without this the check reads
+    // naturalWidth 0 ("never started loading") on Firefox and WebKit —
+    // distinct from the 1 that indicated the original placeholder defect,
+    // and a test artifact rather than a regression.
+    await icons.last().scrollIntoViewIfNeeded();
+
     for (let i = 0; i < iconCount; i += 1) {
-      const naturalWidth = await icons.nth(i).evaluate((img: HTMLImageElement) => img.naturalWidth);
+      const icon = icons.nth(i);
+      await expect(icon).toHaveJSProperty('complete', true, { timeout: 15_000 });
+      const naturalWidth = await icon.evaluate((img: HTMLImageElement) => img.naturalWidth);
       expect(naturalWidth).toBeGreaterThan(1);
     }
   });

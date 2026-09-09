@@ -1,4 +1,4 @@
-import type { Page, ConsoleMessage, Locator } from '@playwright/test';
+import { expect, type Page, type ConsoleMessage, type Locator } from '@playwright/test';
 
 /**
  * The branded 404 heading. Scoped to the heading role specifically because
@@ -99,6 +99,56 @@ export async function waitForSearchResponse(
     .catch(() => null);
   await action();
   await responsePromise;
+}
+
+/**
+ * Waits for a locator's text to change from `previous` and then stop
+ * changing. Two phases, both necessary — each was added after a real
+ * failure, not defensively:
+ *
+ * 1. CHANGED. `waitForSearchResponse` resolves when the response arrives,
+ *    which is NOT when the UI reflects it — measured live on Firefox,
+ *    React re-renders roughly 200ms later. Reading in that gap silently
+ *    returns the previous content. Chromium usually renders fast enough
+ *    to hide this; Firefox exposes it reliably.
+ *
+ * 2. SETTLED. Waiting only for "changed" is still wrong, because the app
+ *    renders intermediate states. Measured live after Reset Filters:
+ *    +630ms shows "Total 818 schemes available" (wording already reset,
+ *    count still filtered) and only +2250ms shows "Total 5002 schemes
+ *    available". A change-only wait latches onto that intermediate value.
+ *
+ * `strict` controls what an unchanged value means. Pagination always
+ *  changes the first result, so a timeout there is a genuine failure and
+ *  should surface loudly. Search and filtering can legitimately produce
+ *  the same result set (a whitespace-only query re-runs unchanged), so
+ *  those tolerate it and simply proceed.
+ */
+export async function waitForTextToSettle(
+  locator: Locator,
+  previous: string | null,
+  opts: { timeout?: number; strict?: boolean } = {},
+): Promise<void> {
+  const { timeout = 20_000, strict = false } = opts;
+  const deadline = Date.now() + timeout;
+
+  if (previous !== null) {
+    const remaining = Math.max(1_000, deadline - Date.now());
+    try {
+      await expect(locator).not.toHaveText(previous, { timeout: remaining });
+    } catch (error) {
+      if (strict) throw error;
+      return;
+    }
+  }
+
+  let last = await locator.innerText().catch(() => null);
+  while (Date.now() < deadline) {
+    await locator.page().waitForTimeout(400);
+    const current = await locator.innerText().catch(() => null);
+    if (current === last) return;
+    last = current;
+  }
 }
 
 /** Parses "Total 4,946 schemes available" / "Total 4946 schemes available in Hindi" into a number. */

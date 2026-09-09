@@ -1,6 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
 import { BasePage } from './BasePage';
-import { waitForSearchResponse } from '../utils/helpers';
+import { waitForSearchResponse, waitForTextToSettle } from '../utils/helpers';
 
 /**
  * The scrollable list of scheme result `<article>` cards on /search, plus
@@ -61,16 +61,47 @@ export class SchemeListingPage extends BasePage {
     await this.resultCards.nth(index).getByRole('heading', { level: 2 }).getByRole('link').click();
   }
 
+  /** The heading the pagination waits on — changing pages always changes it. */
+  private firstResultHeading(): Locator {
+    return this.resultCards.first().getByRole('heading', { level: 2 });
+  }
+
+  private async firstResultTextOrNull(): Promise<string | null> {
+    return this.firstResultHeading()
+      .innerText()
+      .then((t) => t.trim())
+      .catch(() => null);
+  }
+
+  /**
+   * Every pagination method captures the current first result, performs the
+   * click, then waits for that text to actually change — waiting on the
+   * network response alone returns before React re-renders, so callers
+   * would read the previous page's results.
+   *
+   * Unlike search and filtering (where an unchanged result set is a
+   * legitimate outcome, so `waitForTextToSettle` tolerates a timeout),
+   * changing pages must always change the first result. This wait is
+   * therefore strict: if the content has not changed, that is a real
+   * failure and should surface as a clear timeout here rather than as a
+   * confusing wrong-value assertion further down the test.
+   */
+  private async paginate(action: () => Promise<void>): Promise<void> {
+    const before = await this.firstResultTextOrNull();
+    await waitForSearchResponse(this.page, action);
+    await waitForTextToSettle(this.firstResultHeading(), before, { strict: true });
+  }
+
   async goToNextPage(): Promise<void> {
-    await waitForSearchResponse(this.page, () => this.nextPageButton.click());
+    await this.paginate(() => this.nextPageButton.click());
   }
 
   async goToPreviousPage(): Promise<void> {
-    await waitForSearchResponse(this.page, () => this.previousPageButton.click());
+    await this.paginate(() => this.previousPageButton.click());
   }
 
   async goToPage(pageNumber: number): Promise<void> {
     const target = this.pageNumbers.filter({ hasText: new RegExp(`^${pageNumber}$`) });
-    await waitForSearchResponse(this.page, () => target.click());
+    await this.paginate(() => target.click());
   }
 }
